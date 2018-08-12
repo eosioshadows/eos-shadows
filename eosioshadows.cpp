@@ -70,7 +70,7 @@ class eosioshadows : public eosio::contract {
 
             }else if(quantity.amount >= 1000){
 
-                eosio_assert( quantity.amount <= 100000*10000, "单次购买数量超出上限" );
+                eosio_assert( quantity.amount <= 500*10000, "单次购买数量超出上限" );
                 eosio_assert( memo.size() <= 256, "备注信息不能超过256位" );
 
                 uint64_t eos = quantity.amount; // 总的EOS
