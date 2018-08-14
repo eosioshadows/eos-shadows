@@ -1,4 +1,3 @@
-#include <string>
 #include <eosiolib/eosio.hpp>
 #include <eosiolib/asset.hpp>
 
@@ -28,9 +27,9 @@ class eosioshadows : public eosio::contract {
         require_auth( from );
 
         //eosio_assert( now()>=1533979200, "游戏在2018年8月11日下午5点30内测");    
-        eosio_assert( now()>=INIT_TIME, "游戏在2018年8月12日晚上8点8分8秒正式运行");  
+        eosio_assert( now()>=INIT_TIME, "游戏在2018年8月12日晚上8点8分8秒启动游戏");  
 
-        if(quantity.is_valid() && quantity.symbol == S(4, EOS) && from != _self && to == _self)
+        if(quantity.is_valid() && quantity.symbol == S(4, IDE) && from != _self && to == _self)
         {
             if(quantity.amount==1)
             {
@@ -56,7 +55,11 @@ class eosioshadows : public eosio::contract {
                 eosio_assert( useritr->k >= 10000, "账号没有足够多的股份");
 
                 auto gameitr = games.begin();
+                eosio_assert( gameitr->k >= useritr->k, "发行的股份不足以出售");
+
                 uint64_t eos = (INIT_EOS+gameitr->e) * useritr->k / (INIT_KEY-gameitr->k+useritr->k);
+                eosio_assert( eos>=0 && gameitr->e >= eos, "资金储备没有足够EOS");
+
                 games.modify( gameitr, 0, [&]( auto& s ) {
                     s.k -= useritr->k;
                     s.e -= eos;
@@ -70,6 +73,7 @@ class eosioshadows : public eosio::contract {
 
             }else if(quantity.amount >= 1000){
 
+                eosio_assert( quantity.amount >= 10000, "购买数量必须大于等于1EOS" );
                 eosio_assert( quantity.amount <= 500*10000, "单次购买数量超出上限" );
                 eosio_assert( memo.size() <= 256, "备注信息不能超过256位" );
 
@@ -78,7 +82,7 @@ class eosioshadows : public eosio::contract {
                 uint64_t referrer = eos*0.05;   // 5% 给推荐人
                 uint64_t weight = eos*0.15;     // 15% 权重奖池
                 uint64_t jackpot = eos*0.50;    // 50% 储备资金用于Bancor定价 
-                uint64_t distribute = eos*0.20; // 20% 分给股份持有人
+                uint64_t distribute = eos-fee-referrer-weight-jackpot; // 20% 分给股份持有人
 
                 auto gameitr = games.begin();
                 if( gameitr == games.end() ) {
@@ -95,6 +99,8 @@ class eosioshadows : public eosio::contract {
                 }
                 
                 uint64_t key = (INIT_KEY-gameitr->k) * jackpot / (INIT_EOS+gameitr->e+jackpot);
+                eosio_assert( key>=0 && key<=INIT_KEY, "股份数量不正确" );
+
                 games.modify( gameitr, 0, [&]( auto& s ) {
                     s.e += jackpot;
                     s.k += key;
@@ -181,7 +187,10 @@ class eosioshadows : public eosio::contract {
                             users.modify( big_agent,0, [&]( auto& s ) {
                                 s.p += referrer*0.50;
                             });
-                            profit_left -= referrer*0.50;
+                            if(profit_left>=referrer*0.50)
+                            {
+                                profit_left -= referrer*0.50;
+                            }
                         }
                     }
                     if(profit_left>0 && agent != users.end())
@@ -197,20 +206,21 @@ class eosioshadows : public eosio::contract {
                     });
                 }
 
-                for( const auto& item : users ) {
-                    if(item.n!=from) 
+                for(auto member = users.begin();member!=users.end();++member)
+                {
+                    if(member->n!=from)
                     {
-                        auto member = users.find( item.n );
                         users.modify( member,0, [&]( auto& s ) {
                             s.p += distribute*member->k/gameitr->k;
                         });
                     }
                 }
+
             }
         }
 
     }
-
+    
     //@abi action
     void sell(account_name from, asset quantity)
     {
@@ -268,12 +278,9 @@ class eosioshadows : public eosio::contract {
       uint64_t t;
 
       uint64_t primary_key() const { return n; }
-      uint64_t get_key() const { return k; }
       EOSLIB_SERIALIZE(user, (n)(r)(e)(k)(p)(t))
     };
-    typedef eosio::multi_index<N(users), user,
-    indexed_by<N(k), const_mem_fun<user, uint64_t, &user::get_key>>
-    > user_list;
+    typedef eosio::multi_index<N(users), user> user_list;
     user_list users;
 };
 
