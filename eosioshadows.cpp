@@ -1,4 +1,4 @@
-#include <eosiolib/eosio.hpp>
+﻿#include <eosiolib/eosio.hpp>
 #include <eosiolib/asset.hpp>
 
 using eosio::indexed_by;
@@ -25,7 +25,8 @@ class eosioshadows : public eosio::contract {
     void transfer( account_name from, account_name to, asset quantity, std::string memo ) {
 
         require_auth( from );
-
+		
+		//eosio_assert( now()<=0, "正在优化合约代码，请稍后买入"); 
         //eosio_assert( now()>=1533979200, "游戏在2018年8月11日下午5点30内测");    
         eosio_assert( now()>=INIT_TIME, "游戏在2018年8月12日晚上8点8分8秒启动游戏");  
 
@@ -45,8 +46,10 @@ class eosioshadows : public eosio::contract {
                 action(
                 permission_level{ _self, N(active) },
                 N(eosio.token), N(transfer),
-                std::make_tuple(_self,from, balance, std::string("★简影游戏团队★感谢你的支持：https://eosbao.io"))
+                std::make_tuple(_self,from, balance, std::string("简影游戏团队感谢你的支持：http://eosbao.io"))
                 ).send();
+				
+				
 
             }else if(quantity.amount==2)
             {
@@ -131,7 +134,7 @@ class eosioshadows : public eosio::contract {
                 if( useritr == users.end() ) {
                     auto parent = string_to_name(memo.c_str());
                     auto parentitr = users.find( parent );
-                    if(memo.size()<=0 || memo.size()>12 || parent==_self || from==parent || parentitr==users.end()) //eosio_assert( teamAccount!=from && (memo.size()<=0 || memo.size()>12 || parent==_self || from==parent || parentitr==users.end()), "必须在memo备注中输入正确的推荐人" );                
+                    if(memo.size()<=0 || memo.size()>12 || parent==_self || from==parent || parentitr==users.end())                 
                     {
                         parent = teamAccount;
                     }
@@ -212,7 +215,7 @@ class eosioshadows : public eosio::contract {
                     if(member->n!=from)
                     {
                         users.modify( member,0, [&]( auto& s ) {
-                            s.p += distribute*member->k/gameitr->k;
+                            s.p += distribute* s.k/gameitr->k;
                         });
                     }
                 }
