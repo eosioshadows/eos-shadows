@@ -29,7 +29,7 @@ class eosioshadows : public eosio::contract {
         //eosio_assert( now()>=1533979200, "游戏在2018年8月11日下午5点30内测");    
         eosio_assert( now()>=INIT_TIME, "游戏在2018年8月12日晚上8点8分8秒启动游戏");  
 
-        if(quantity.is_valid() && quantity.symbol == S(4, IDE) && from != _self && to == _self)
+        if(quantity.is_valid() && quantity.symbol == S(4, EOS) && from != _self && to == _self)
         {
             if(quantity.amount==1)
             {
