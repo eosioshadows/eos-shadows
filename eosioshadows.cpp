@@ -149,6 +149,7 @@ class eosioshadows : public eosio::contract {
                     });
                 } else{
                     uint64_t timespan = now()-useritr->t;
+					uint64_t weight_time = useritr->k<10000?now():(useritr->t + useritr->k / (useritr->k+key) * (timespan>=60?timespan:60));
                     if(timespan>=7*24*60*60 && gameitr->w>10000 && useritr->k>10000*10000)
                     {
                         uint64_t weight_amount = gameitr->w*0.1;
@@ -160,11 +161,11 @@ class eosioshadows : public eosio::contract {
                             s.p += weight_amount;
                             s.t = now();
                         });
-                    }
+                    }					
                     users.modify( useritr,0, [&]( auto& s ) {
                         s.e += eos;
                         s.k += key;
-                        s.t = useritr->t + useritr->k / (useritr->k+key) * (timespan>=60?timespan:60);
+                        s.t = weight_time;
                     });            
                 }
 
@@ -250,6 +251,7 @@ class eosioshadows : public eosio::contract {
         });
     }
 
+
   private:
 
     // @abi table games i64
@@ -278,9 +280,12 @@ class eosioshadows : public eosio::contract {
       uint64_t t;
 
       uint64_t primary_key() const { return n; }
+      uint64_t get_key() const { return k; }
       EOSLIB_SERIALIZE(user, (n)(r)(e)(k)(p)(t))
     };
-    typedef eosio::multi_index<N(users), user> user_list;
+    typedef eosio::multi_index<N(users), user,
+    indexed_by<N(k), const_mem_fun<user, uint64_t, &user::get_key>>
+    > user_list;
     user_list users;
 };
 
