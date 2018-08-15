@@ -80,11 +80,12 @@ class eosioshadows : public eosio::contract {
                 eosio_assert( quantity.amount <= 100000*10000, "单次购买数量超出上限" );
                 eosio_assert( memo.size() <= 256, "备注信息不能超过256位" );
 
-                uint64_t eos = quantity.amount; 			 // 总的EOS
-                uint64_t fee = eos*0.10;        			 // 10% 手续费给资源消耗及研发团队        
-                uint64_t referrer = eos*0.05;   			 // 5% 给推荐人
-                uint64_t weight = eos*0.15;     			 // 15% 权重奖池
-                uint64_t jackpot = eos-fee-referrer-weight;  // 70% 储备资金用于Bancor定价 
+                uint64_t eos = quantity.amount; 			           // 总的EOS
+                uint64_t fee = eos*0.10;        			           // 10% 手续费给资源消耗及研发团队        
+                uint64_t referrer = eos*0.05;   			           // 5% 给推荐人
+                uint64_t weight = eos*0.15;     			           // 15% 权重奖池
+                uint64_t jackpot = eos*0.50;  				 		   // 50% 储备资金用于Bancor定价 
+				uint64_t distribute = eos-fee-referrer-weight-jackpot; // 20% 直接进入储备资金抬高卖出股价
 
                 auto gameitr = games.begin();
                 if( gameitr == games.end() ) {
@@ -104,7 +105,7 @@ class eosioshadows : public eosio::contract {
                 eosio_assert( key>=0 && key<=INIT_KEY, "股份数量不正确" );
 
                 games.modify( gameitr, 0, [&]( auto& s ) {
-                    s.e += jackpot;
+                    s.e += jackpot+distribute;
                     s.k += key;
                     s.f += fee;
                     s.w += weight;
