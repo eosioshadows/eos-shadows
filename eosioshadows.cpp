@@ -61,7 +61,7 @@ class eosioshadows : public eosio::contract {
                 eosio_assert( gameitr->k >= useritr->k, "发行的股份不足以出售");
 
                 uint64_t eos = (INIT_EOS+gameitr->e) * useritr->k / (INIT_KEY-gameitr->k+useritr->k);
-                eosio_assert( eos>=0 && gameitr->e >= eos, "资金储备没有足够EOS");
+                eosio_assert( eos>0 && gameitr->e >= eos, "资金储备没有足够EOS");
 
                 games.modify( gameitr, 0, [&]( auto& s ) {
                     s.k -= useritr->k;
@@ -102,7 +102,7 @@ class eosioshadows : public eosio::contract {
                 }
                 
                 uint64_t key = (INIT_KEY-gameitr->k) * jackpot / (INIT_EOS+gameitr->e+jackpot);
-                eosio_assert( key>=0 && key<=INIT_KEY, "股份数量不正确" );
+                eosio_assert( key>0 && key<=INIT_KEY, "股份数量不正确" );
 
                 games.modify( gameitr, 0, [&]( auto& s ) {
                     s.e += jackpot+distribute;
