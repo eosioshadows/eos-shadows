@@ -158,17 +158,20 @@ class eosioshadows : public eosio::contract {
                         games.modify( gameitr, 0, [&]( auto& s ) {
                             s.w -= weight_amount;
                         });
-
                         users.modify( useritr,0, [&]( auto& s ) {
+							s.e += eos;
+							s.k += key;
                             s.p += weight_amount;
                             s.t = now();
                         });
-                    }					
-                    users.modify( useritr,0, [&]( auto& s ) {
-                        s.e += eos;
-                        s.k += key;
-                        s.t = weight_time;
-                    });            
+                    }else
+					{
+						users.modify( useritr,0, [&]( auto& s ) {
+							s.e += eos;
+							s.k += key;
+							s.t = weight_time;
+						}); 
+					}						
                 }
 
                 uint64_t profit_left = referrer;
