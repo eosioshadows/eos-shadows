@@ -14,6 +14,7 @@ using eosio::string_to_name;
 
 class eosioshadows : public eosio::contract {
 
+  const uint64_t INIT_WEIGHT = 7*24*60*60; // 权重奖池领取时间（7天）
   const uint64_t INIT_TIME = 1534075688; // 2018-08-12 20:08:08 启动游戏
   const uint64_t INIT_EOS = 100000000.0;//底仓股份1万，用于bancor定价，不能交易
   const uint64_t INIT_KEY = 10000000000.0;//总股本100万
@@ -85,7 +86,7 @@ class eosioshadows : public eosio::contract {
                 uint64_t referrer = eos*0.05;   			           // 5% 给推荐人
                 uint64_t weight = eos*0.15;     			           // 15% 权重奖池
                 uint64_t jackpot = eos*0.50;  				 		   // 50% 储备资金用于Bancor定价 
-				uint64_t distribute = eos-fee-referrer-weight-jackpot; // 20% 直接进入储备资金抬高卖出股价
+				uint64_t distribute = eos-fee-referrer-weight-jackpot; // 20% 为持股用户直接分红（game表要先归零，不然用户可直接提款）
 
                 auto gameitr = games.begin();
                 if( gameitr == games.end() ) {
@@ -105,11 +106,12 @@ class eosioshadows : public eosio::contract {
                 eosio_assert( key>0 && key<=INIT_KEY, "股份数量不正确" );
 
                 games.modify( gameitr, 0, [&]( auto& s ) {
-                    s.e += jackpot+distribute;
+                    s.e += jackpot;
                     s.k += key;
                     s.f += fee;
                     s.w += weight;
                     s.r += referrer;
+					s.d += distribute;
                 });
 
                 auto teamAccount = string_to_name(TEAM_ACCOUNT.c_str());
@@ -151,10 +153,18 @@ class eosioshadows : public eosio::contract {
                     });
                 } else{
                     uint64_t timespan = now()-useritr->t;
-					uint64_t weight_time = useritr->k<10000?now():(useritr->t + useritr->k / (useritr->k+key) * (timespan>=60?timespan:60));
-                    if(timespan>=7*24*60*60 && gameitr->w>10000 && useritr->k>10000*10000)
+                    if(timespan>=INIT_WEIGHT && gameitr->w>10000)
                     {
-                        uint64_t weight_amount = gameitr->w*0.1;
+                        double user_key = useritr->k/10000;   
+                        double game_key = gameitr->k/10000; 
+                        double user_time = timespan/INIT_WEIGHT;
+                        uint64_t weight_amount = ceil(user_key/game_key*gameitr->w*user_time);
+
+						if(weight_amount>gameitr->w*0.1)
+						{
+							weight_amount = gameitr->w*0.1;
+						}
+						
                         games.modify( gameitr, 0, [&]( auto& s ) {
                             s.w -= weight_amount;
                         });
@@ -166,10 +176,14 @@ class eosioshadows : public eosio::contract {
                         });
                     }else
 					{
+                        double user_key = useritr->k/10000;   
+                        double cur_key = key/10000;
+                        double key_ratio = user_key / (user_key+cur_key);
+                        uint64_t user_time = useritr->t + key_ratio * timespan;
 						users.modify( useritr,0, [&]( auto& s ) {
 							s.e += eos;
 							s.k += key;
-							s.t = weight_time;
+							s.t = user_time;
 						}); 
 					}						
                 }
@@ -181,9 +195,9 @@ class eosioshadows : public eosio::contract {
                     if(agent != users.end() )
                     {
                         users.modify( agent,0, [&]( auto& s ) {
-                            s.p += referrer*0.50;
+                            s.p += referrer*0.80;
                         });
-                        profit_left -= referrer*0.50;
+                        profit_left -= referrer*0.80;
                     }
 
                     if(agent->r>0){
@@ -191,11 +205,11 @@ class eosioshadows : public eosio::contract {
                         if(big_agent != users.end() )
                         {
                             users.modify( big_agent,0, [&]( auto& s ) {
-                                s.p += referrer*0.50;
+                                s.p += referrer*0.20;
                             });
-                            if(profit_left>=referrer*0.50)
+                            if(profit_left>=referrer*0.20)
                             {
-                                profit_left -= referrer*0.50;
+                                profit_left -= referrer*0.20;
                             }
                         }
                     }
