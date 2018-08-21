@@ -173,7 +173,7 @@ class eosioshadows : public eosio::contract {
 							s.e += eos;
 							s.k += key;
                             s.p += weight_amount;
-                            s.t = now();
+                            s.t = now()-eos/10000*60;
                         });
                     }else
 					{
