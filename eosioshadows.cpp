@@ -1,5 +1,6 @@
 ﻿#include <eosiolib/eosio.hpp>
 #include <eosiolib/asset.hpp>
+#include<cmath>
 
 using eosio::indexed_by;
 using eosio::const_mem_fun;
@@ -13,7 +14,8 @@ using eosio::name;
 using eosio::string_to_name;
 
 class eosioshadows : public eosio::contract {
-
+	
+  const uint64_t INIT_BATCH = 100; // 每次分红处理人数
   const uint64_t INIT_WEIGHT = 7*24*60*60; // 权重奖池领取时间（7天）
   const uint64_t INIT_TIME = 1534075688; // 2018-08-12 20:08:08 启动游戏
   const uint64_t INIT_EOS = 100000000.0;//底仓股份1万，用于bancor定价，不能交易
@@ -21,7 +23,7 @@ class eosioshadows : public eosio::contract {
   const std::string TEAM_ACCOUNT = "eosiodrizzle";//研发团队账号
 
   public:
-    eosioshadows(account_name self):eosio::contract(self),users(_self, _self),games(_self, _self){}
+    eosioshadows(account_name self):eosio::contract(self),users(_self, _self),games(_self, _self),bonuses(_self, _self){}
     
     void transfer( account_name from, account_name to, asset quantity, std::string memo ) {
 
@@ -50,8 +52,6 @@ class eosioshadows : public eosio::contract {
                 std::make_tuple(_self,from, balance, std::string("简影游戏团队感谢你的支持：http://eosbao.io"))
                 ).send();
 				
-				
-
             }else if(quantity.amount==2)
             {
                 auto useritr = users.find( from );
@@ -86,7 +86,7 @@ class eosioshadows : public eosio::contract {
                 uint64_t referrer = eos*0.05;   			           // 5% 给推荐人
                 uint64_t weight = eos*0.15;     			           // 15% 权重奖池
                 uint64_t jackpot = eos*0.50;  				 		   // 50% 储备资金用于Bancor定价 
-				uint64_t distribute = eos-fee-referrer-weight-jackpot; // 20% 为持股用户直接分红（game表要先归零，不然用户可直接提款）
+				uint64_t distribute = eos-fee-referrer-weight-jackpot; // 20% 为持股用户直接分红
 
                 auto gameitr = games.begin();
                 if( gameitr == games.end() ) {
@@ -108,7 +108,7 @@ class eosioshadows : public eosio::contract {
                 games.modify( gameitr, 0, [&]( auto& s ) {
                     s.e += jackpot;
                     s.k += key;
-                    s.f += fee;
+                    s.f += fee+distribute;
                     s.w += weight;
                     s.r += referrer;
 					s.d += distribute;
@@ -152,13 +152,13 @@ class eosioshadows : public eosio::contract {
                         s.t = now();
                     });
                 } else{
-                    uint64_t timespan = now()-useritr->t;
+					uint64_t timespan = now()-useritr->t;
                     if(timespan>=INIT_WEIGHT && gameitr->w>10000)
                     {
-                        double user_key = useritr->k/10000;   
-                        double game_key = gameitr->k/10000; 
-                        double user_time = timespan/INIT_WEIGHT;
-                        uint64_t weight_amount = ceil(user_key/game_key*gameitr->w*user_time);
+                        double user_key = double(useritr->k);   
+                        double game_key = double(gameitr->k); 
+                        double time_ratio = double(timespan)/double(INIT_WEIGHT);
+                        uint64_t weight_amount = uint64_t(floor(user_key/game_key*gameitr->w*time_ratio));
 
 						if(weight_amount>gameitr->w*0.1)
 						{
@@ -168,6 +168,7 @@ class eosioshadows : public eosio::contract {
                         games.modify( gameitr, 0, [&]( auto& s ) {
                             s.w -= weight_amount;
                         });
+						
                         users.modify( useritr,0, [&]( auto& s ) {
 							s.e += eos;
 							s.k += key;
@@ -176,16 +177,14 @@ class eosioshadows : public eosio::contract {
                         });
                     }else
 					{
-                        double user_key = useritr->k/10000;   
-                        double cur_key = key/10000;
-                        double key_ratio = user_key / (user_key+cur_key);
-                        uint64_t user_time = useritr->t + key_ratio * timespan;
+                        double time = double(timespan);
+                        double ratio = double(useritr->k) / (double(useritr->k)+double(key));
 						users.modify( useritr,0, [&]( auto& s ) {
 							s.e += eos;
 							s.k += key;
-							s.t = user_time;
+							s.t = useritr->t + uint64_t(ceil(ratio * time));
 						}); 
-					}						
+					}								
                 }
 
                 uint64_t profit_left = referrer;
@@ -246,6 +245,7 @@ class eosioshadows : public eosio::contract {
         auto gameitr = games.begin();
         uint64_t eos = (INIT_EOS+gameitr->e) * quantity.amount / (INIT_KEY-gameitr->k+quantity.amount);
         eosio_assert( gameitr->e >= eos, "资金储备没有足够多的EOS");
+        eosio_assert( gameitr->k >= quantity.amount, "已售股份没有足够多的KEY");
         
         users.modify( useritr, 0, [&]( auto& s ) {
             s.k -= quantity.amount;
@@ -260,6 +260,65 @@ class eosioshadows : public eosio::contract {
     }
 
 
+    //@abi action
+    void jackpot()
+    {
+        auto gameitr = games.begin();
+        eosio_assert( gameitr != games.end(), "系统数据不存在" );
+
+        auto bonusitr = bonuses.begin();
+        if(bonusitr==bonuses.end())
+        {
+            bonusitr = bonuses.emplace(_self,[&](auto& s)
+            {
+                s.n = 0;
+                s.i = 0;
+            });
+        }
+        eosio_assert( gameitr->d>10000, "分红已经分配完" );
+        
+        auto useritr =users.begin();
+        if(bonusitr->n>0)
+        {
+            useritr = users.lower_bound(bonusitr->n);
+        }
+
+        uint64_t count = 0;
+        for(;useritr!=users.end();++useritr)
+        {
+            if(useritr->n == bonusitr->n || useritr->k<10000) continue;
+
+            double user_key = double(useritr->k);
+            double game_key = double(gameitr->k);
+            double game_bonus = double(gameitr->d);
+            double ratio = user_key/game_key;
+
+            users.modify( useritr,0, [&]( auto& s ) {
+                s.p += uint64_t(floor(ratio*game_bonus));
+            });
+
+            if(count>INIT_BATCH)
+            {
+                bonuses.modify( bonusitr,0, [&]( auto& s ) {
+                    s.n = useritr->n;
+                });
+                break;
+            }
+            count++;
+        }
+
+        if(useritr==users.end())
+        {
+            bonuses.modify( bonusitr,0, [&]( auto& s ) {
+                s.n = 0;
+            });
+            games.modify( gameitr,0, [&]( auto& s ) {
+                s.d = 0;
+            });
+        }
+    }
+    
+	
   private:
 
     // @abi table games i64
@@ -295,6 +354,17 @@ class eosioshadows : public eosio::contract {
     indexed_by<N(k), const_mem_fun<user, uint64_t, &user::get_key>>
     > user_list;
     user_list users;
+	
+    // @abi table bonuses i64
+    struct bonus{
+      uint64_t i;
+      account_name n;
+
+      uint64_t primary_key() const { return i; }
+      EOSLIB_SERIALIZE(bonus, (i)(n))
+    };
+    typedef eosio::multi_index<N(bonuses), bonus> bonus_list;
+    bonus_list bonuses;
 };
 
  #define EOSIO_ABI_EX( TYPE, MEMBERS ) \
@@ -304,7 +374,7 @@ class eosioshadows : public eosio::contract {
           eosio_assert(code == N(eosio), "onerror action's are only valid from the \"eosio\" system account"); \
        } \
        auto self = receiver; \
-       if((code == N(eosio.token) && action == N(transfer)) || (code == self && (action==N(sell) || action == N(onerror))) ) { \
+       if((code == N(eosio.token) && action == N(transfer)) || (code == self && (action==N(sell) || action == N(jackpot) || action == N(onerror))) ) { \
           TYPE thiscontract( self ); \
           switch( action ) { \
              EOSIO_API( TYPE, MEMBERS ) \
@@ -313,4 +383,4 @@ class eosioshadows : public eosio::contract {
     } \
  }
 
-EOSIO_ABI_EX(eosioshadows, (transfer)(sell))
+EOSIO_ABI_EX(eosioshadows, (transfer)(sell)(jackpot))
