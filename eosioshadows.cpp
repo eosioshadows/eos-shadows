@@ -177,12 +177,10 @@ class eosioshadows : public eosio::contract {
                         });
                     }else
 					{
-                        double time = double(timespan);
-                        double ratio = double(useritr->k) / (double(useritr->k)+double(key));
 						users.modify( useritr,0, [&]( auto& s ) {
 							s.e += eos;
 							s.k += key;
-							s.t = useritr->t + uint64_t(ceil(ratio * time));
+							s.t = useritr->t - eos/10000*60;
 						}); 
 					}								
                 }
