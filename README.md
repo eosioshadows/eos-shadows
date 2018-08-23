@@ -1,5 +1,15 @@
 # 简影游戏平台
-你再这里既是玩家，也是我们的股东
+简影致力于打造基于EOS的游戏平台，你在这里既是玩家也是我们的合作人
+让结局不留遗憾，让过程更加完美
+
+## 智能合约
+
+合约账号：eosioshadows
+
+合约地址：https://eospark.com/MainNet/contract/eosioshadows
+
+开源代码：https://github.com/eosioshadows/eos-shadows
+
 
 ## 游戏规则
 
